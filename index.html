@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Painel Google Sheets</title>
+
+<style>
+body {
+    font-family: Arial;
+    margin: 0;
+    background: #f4f7fb;
+}
+
+.topo {
+    background: linear-gradient(90deg, #0a7cff, #00b894);
+    padding: 15px;
+    color: white;
+    font-size: 20px;
+}
+
+.abas {
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+}
+.aba {
+    padding: 8px 15px;
+    background: #dfe6e9;
+    cursor: pointer;
+    border-radius: 6px;
+}
+.aba.active {
+    background: #00b894;
+    color: white;
+}
+
+.busca {
+    padding: 10px;
+}
+.busca input {
+    width: 100%;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+}
+
+.cards {
+    display: flex;
+    gap: 10px;
+    padding: 10px;
+}
+.card {
+    flex: 1;
+    padding: 15px;
+    border-radius: 10px;
+    color: white;
+    font-size: 18px;
+}
+.card.qtd { background: #0984e3; }
+.card.valor { background: #00b894; }
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+th, td {
+    padding: 8px;
+    border: 1px solid #ddd;
+}
+th {
+    background: #0a7cff;
+    color: white;
+}
+</style>
+</head>
+
+<body>
+
+<div class="topo">Painel Google Sheets</div>
+
+<div class="abas" id="abas"></div>
+
+<div class="busca">
+    <input type="text" id="search" placeholder="Pesquisar em todas as colunas...">
+</div>
+
+<div class="cards">
+    <div class="card qtd">
+        Total Registros: <span id="totalQtd">0</span>
+    </div>
+    <div class="card valor">
+        Total Valor: R$ <span id="totalValor">0</span>
+    </div>
+</div>
+
+<table id="tabela">
+    <thead></thead>
+    <tbody></tbody>
+</table>
+
+<script>
+const SHEET_ID = "17hskWwX1cJP6NDuctKgTP3O8ct4WM-xcFnxKYRrHMCY";
+
+const abasConfig = [
+    { nome: "Gerador", sheet: "Gerador" },
+    { nome: "Manutenção", sheet: "Manutenção" }
+];
+
+let dadosOriginais = [];
+let abaAtual = "Gerador";
+
+function criarAbas() {
+    const container = document.getElementById("abas");
+    container.innerHTML = "";
+
+    abasConfig.forEach(a => {
+        const el = document.createElement("div");
+        el.className = "aba";
+        el.innerText = a.nome;
+
+        if (a.sheet === abaAtual) el.classList.add("active");
+
+        el.onclick = () => {
+            abaAtual = a.sheet;
+            carregarDados();
+            criarAbas();
+        };
+
+        container.appendChild(el);
+    });
+}
+
+async function carregarDados() {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${abaAtual}`;
+
+    const res = await fetch(url);
+    const text = await res.text();
+
+    const linhas = text.split("\n").map(l => l.split(","));
+
+    const cabecalho = linhas[1];
+    const dados = linhas.slice(2);
+
+    dadosOriginais = dados;
+
+    renderTabela(cabecalho, dados);
+    atualizarCards(dados);
+}
+
+function renderTabela(headers, dados) {
+    const thead = document.querySelector("#tabela thead");
+    const tbody = document.querySelector("#tabela tbody");
+
+    thead.innerHTML = "<tr>" + headers.map(h => `<th>${h}</th>`).join("") + "</tr>";
+
+    tbody.innerHTML = dados.map(linha =>
+        "<tr>" + linha.map(c => `<td>${c}</td>`).join("") + "</tr>"
+    ).join("");
+}
+
+function atualizarCards(dados) {
+    document.getElementById("totalQtd").innerText = dados.length;
+
+    let total = 0;
+
+    dados.forEach(l => {
+        let valor = (l[8] || "0")
+            .replace("R$", "")
+            .replace(/\./g, "")
+            .replace(",", ".");
+        valor = parseFloat(valor);
+
+        if (!isNaN(valor)) total += valor;
+    });
+
+    document.getElementById("totalValor").innerText =
+        total.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+}
+
+document.getElementById("search").addEventListener("input", e => {
+    const termo = e.target.value.toLowerCase();
+
+    const filtrado = dadosOriginais.filter(linha =>
+        linha.some(c =>
+            c.toLowerCase().includes(termo)
+        )
+    );
+
+    const headers = Array.from(document.querySelectorAll("th")).map(th => th.innerText);
+
+    renderTabela(headers, filtrado);
+    atualizarCards(filtrado);
+});
+
+criarAbas();
+carregarDados();
+</script>
+
+</body>
+</html>
